@@ -2,10 +2,11 @@ package financial
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
-	"net/http"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type Handler struct {
@@ -17,6 +18,7 @@ type Service interface {
 	CreateTransaction(ctx context.Context, req CreateTransactionRequest) (*Transaction, error)
 	ListTransactions(ctx context.Context, limit, offset int) ([]*Transaction, int64, error)
 	GetMonthlyAggregate(ctx context.Context, month string) (*AggregatedData, error)
+	DeleteTransaction(ctx context.Context, id uuid.UUID) error
 }
 
 func NewHandler(service Service, logger *slog.Logger) *Handler {
@@ -26,45 +28,40 @@ func NewHandler(service Service, logger *slog.Logger) *Handler {
 	}
 }
 
-func (h *Handler) CreateTransaction(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateTransaction(c *gin.Context) {
 	var req CreateTransactionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.logger.Error("failed to decode request", slog.String("error", err.Error()))
-		h.respondWithError(w, http.StatusBadRequest, "Invalid request body")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Error("failed to bind request", slog.String("error", err.Error()))
+		c.JSON(400, gin.H{"error": "Invalid request body", "details": err.Error()})
 		return
 	}
 
-	transaction, err := h.service.CreateTransaction(r.Context(), req)
+	transaction, err := h.service.CreateTransaction(c.Request.Context(), req)
 	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusCreated, transaction)
+	c.JSON(201, transaction)
 }
 
-func (h *Handler) ListTransactions(w http.ResponseWriter, r *http.Request) {
-	limitStr := r.URL.Query().Get("limit")
-	offsetStr := r.URL.Query().Get("offset")
+func (h *Handler) ListTransactions(c *gin.Context) {
+	limitStr := c.DefaultQuery("limit", "20")
+	offsetStr := c.DefaultQuery("offset", "0")
 
-	limit := 20
-	offset := 0
-
-	if limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil {
-			limit = l
-		}
-	}
-
-	if offsetStr != "" {
-		if o, err := strconv.Atoi(offsetStr); err == nil {
-			offset = o
-		}
-	}
-
-	transactions, total, err := h.service.ListTransactions(r.Context(), limit, offset)
+	limit, err := strconv.Atoi(limitStr)
 	if err != nil {
-		h.respondWithError(w, http.StatusInternalServerError, "Failed to list transactions")
+		limit = 20
+	}
+
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil {
+		offset = 0
+	}
+
+	transactions, total, err := h.service.ListTransactions(c.Request.Context(), limit, offset)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to list transactions"})
 		return
 	}
 
@@ -75,33 +72,46 @@ func (h *Handler) ListTransactions(w http.ResponseWriter, r *http.Request) {
 		Offset:       offset,
 	}
 
-	h.respondWithJSON(w, http.StatusOK, response)
+	c.JSON(200, response)
 }
 
-func (h *Handler) GetMonthlyAggregate(w http.ResponseWriter, r *http.Request) {
-	month := r.URL.Query().Get("month")
+func (h *Handler) GetMonthlyAggregate(c *gin.Context) {
+	month := c.Query("month")
 	if month == "" {
-		h.respondWithError(w, http.StatusBadRequest, "month query parameter is required (format: YYYY-MM)")
+		c.JSON(400, gin.H{"error": "month query parameter is required (format: YYYY-MM)"})
 		return
 	}
 
-	aggregate, err := h.service.GetMonthlyAggregate(r.Context(), month)
+	aggregate, err := h.service.GetMonthlyAggregate(c.Request.Context(), month)
 	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusOK, aggregate)
+	c.JSON(200, aggregate)
 }
 
-func (h *Handler) respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	if err := json.NewEncoder(w).Encode(payload); err != nil {
-		h.logger.Error("failed to encode response", slog.String("error", err.Error()))
+func (h *Handler) DeleteTransaction(c *gin.Context) {
+	idStr := c.Param("id")
+	if idStr == "" {
+		c.JSON(400, gin.H{"error": "transaction ID is required"})
+		return
 	}
+
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "invalid transaction ID"})
+		return
+	}
+
+	if err := h.service.DeleteTransaction(c.Request.Context(), id); err != nil {
+		h.logger.Error("failed to delete transaction",
+			slog.String("error", err.Error()),
+			slog.String("id", id.String()))
+		c.JSON(500, gin.H{"error": "Failed to delete transaction"})
+		return
+	}
+
+	c.Status(204)
 }
 
-func (h *Handler) respondWithError(w http.ResponseWriter, code int, message string) {
-	h.respondWithJSON(w, code, map[string]string{"error": message})
-}

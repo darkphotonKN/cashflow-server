@@ -2,6 +2,7 @@ package financial
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -9,17 +10,20 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kranti/cashflow/internal/s3"
 )
 
 type service struct {
-	repo   Repository
-	logger *slog.Logger
+	repo      Repository
+	s3Service s3.Service
+	logger    *slog.Logger
 }
 
-func NewService(repo Repository, logger *slog.Logger) *service {
+func NewService(repo Repository, s3Service s3.Service, logger *slog.Logger) *service {
 	return &service{
-		repo:   repo,
-		logger: logger,
+		repo:      repo,
+		s3Service: s3Service,
+		logger:    logger,
 	}
 }
 
@@ -39,12 +43,29 @@ func (s *service) CreateTransaction(ctx context.Context, req CreateTransactionRe
 
 	now := time.Now()
 	transaction := &Transaction{
-		ID:        uuid.New(),
-		Date:      date,
-		Amount:    req.Amount,
-		Type:      req.Type,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:          uuid.New(),
+		Date:        date,
+		Amount:      req.Amount,
+		Type:        req.Type,
+		Description: req.Description,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	// Handle image upload if provided
+	if req.ImageBase64 != "" {
+		imageData, contentType, err := s.decodeBase64Image(req.ImageBase64)
+		if err != nil {
+			return nil, fmt.Errorf("decoding image: %w", err)
+		}
+
+		url, key, err := s.s3Service.UploadImage(ctx, imageData, contentType)
+		if err != nil {
+			return nil, fmt.Errorf("uploading image: %w", err)
+		}
+
+		transaction.ImageURL = url
+		transaction.ImageKey = key
 	}
 
 	if err := s.repo.Create(ctx, transaction); err != nil {
@@ -143,3 +164,62 @@ func (s *service) GetMonthlyAggregate(ctx context.Context, month string) (*Aggre
 	return aggregate, nil
 }
 
+func (s *service) DeleteTransaction(ctx context.Context, id uuid.UUID) error {
+	// Get transaction to retrieve image key
+	transaction, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("getting transaction: %w", err)
+	}
+
+	// Delete image from S3 if exists
+	if transaction.ImageKey != "" {
+		if err := s.s3Service.DeleteImage(ctx, transaction.ImageKey); err != nil {
+			s.logger.Error("failed to delete image from S3",
+				slog.String("error", err.Error()),
+				slog.String("key", transaction.ImageKey))
+			// Continue with transaction deletion even if image deletion fails
+		}
+	}
+
+	// Delete transaction from database
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return fmt.Errorf("deleting transaction: %w", err)
+	}
+
+	s.logger.Info("transaction deleted",
+		slog.String("id", id.String()))
+
+	return nil
+}
+
+func (s *service) decodeBase64Image(base64Str string) ([]byte, string, error) {
+	// Remove data URL prefix if present (e.g., "data:image/jpeg;base64,")
+	parts := strings.Split(base64Str, ",")
+	var data string
+	var contentType string
+
+	if len(parts) == 2 && strings.HasPrefix(parts[0], "data:") {
+		// Extract content type from data URL
+		metadata := parts[0]
+		data = parts[1]
+
+		// Parse content type from metadata
+		metaParts := strings.Split(metadata, ":")
+		if len(metaParts) == 2 {
+			contentParts := strings.Split(metaParts[1], ";")
+			if len(contentParts) > 0 {
+				contentType = contentParts[0]
+			}
+		}
+	} else {
+		data = base64Str
+		contentType = "image/jpeg" // default
+	}
+
+	imageData, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		return nil, "", fmt.Errorf("decoding base64: %w", err)
+	}
+
+	return imageData, contentType, nil
+}

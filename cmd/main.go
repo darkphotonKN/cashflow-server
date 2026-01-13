@@ -12,6 +12,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/kranti/cashflow/config"
+	"github.com/kranti/cashflow/internal/s3"
 )
 
 func main() {
@@ -33,7 +34,19 @@ func main() {
 	}
 	defer db.Close()
 
-	handler := config.SetupRoutes(db, logger)
+	s3Config, err := s3.NewConfig()
+	if err != nil {
+		logger.Error("failed to load S3 config", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	s3Service, err := s3.NewService(s3Config)
+	if err != nil {
+		logger.Error("failed to create S3 service", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	router := config.SetupRoutes(db, s3Service, logger)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -42,7 +55,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%s", port),
-		Handler: handler,
+		Handler: router,
 	}
 
 	go func() {

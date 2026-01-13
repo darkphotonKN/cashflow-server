@@ -14,18 +14,23 @@ const (
 )
 
 type Transaction struct {
-	ID        uuid.UUID       `json:"id"`
-	Date      time.Time       `json:"date"`
-	Amount    float64         `json:"amount"`
-	Type      TransactionType `json:"type"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID          uuid.UUID       `json:"id"`
+	Date        time.Time       `json:"date"`
+	Amount      float64         `json:"amount"`
+	Type        TransactionType `json:"type"`
+	Description string          `json:"description"`
+	ImageURL    string          `json:"image_url"`
+	ImageKey    string          `json:"image_key,omitempty"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
 }
 
 type CreateTransactionRequest struct {
-	Date   string          `json:"date"`
-	Amount float64         `json:"amount"`
-	Type   TransactionType `json:"type"`
+	Date        string          `json:"date" binding:"required"`
+	Amount      float64         `json:"amount" binding:"required,gt=0"`
+	Type        TransactionType `json:"type" binding:"required,oneof=spending earning"`
+	Description string          `json:"description"`
+	ImageBase64 string          `json:"image_base64,omitempty"`
 }
 
 type ListTransactionsResponse struct {

@@ -1,0 +1,422 @@
+{
+	"info": {
+		"_postman_id": "cashflow-api-collection",
+		"name": "Cashflow API",
+		"description": "Personal financial tracking API with transaction management and image upload capabilities.\n\n## Base URL\n`http://localhost:8080`\n\n## Features\n- Create transactions with descriptions and image attachments\n- List transactions with pagination\n- Monthly aggregation and reporting\n- Delete transactions (removes associated S3 images)\n- Image upload to AWS S3 with automatic URL generation",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/health",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"health"
+					]
+				},
+				"description": "Check if the API server is running and healthy."
+			},
+			"response": [
+				{
+					"name": "Health Check Success",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [],
+					"cookie": [],
+					"body": "{\n    \"status\": \"ok\"\n}"
+				}
+			]
+		},
+		{
+			"name": "Create Transaction (Basic)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"date\": \"2024-01-15\",\n    \"amount\": 150.50,\n    \"type\": \"spending\",\n    \"description\": \"Grocery shopping at Whole Foods\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/api/transactions",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"transactions"
+					]
+				},
+				"description": "Create a new transaction without an image.\n\n## Required Fields:\n- **date**: Date in YYYY-MM-DD format (e.g., \"2024-01-15\")\n- **amount**: Positive decimal number (e.g., 150.50)\n- **type**: Either \"spending\" or \"earning\"\n\n## Optional Fields:\n- **description**: Text description of the transaction\n\n## Validation Rules:\n- Amount must be greater than 0\n- Date must be in valid YYYY-MM-DD format\n- Type must be exactly \"spending\" or \"earning\""
+			},
+			"response": [
+				{
+					"name": "Transaction Created Successfully",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"date\": \"2024-01-15\",\n    \"amount\": 150.50,\n    \"type\": \"spending\",\n    \"description\": \"Grocery shopping at Whole Foods\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/transactions",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"transactions"
+							]
+						}
+					},
+					"status": "Created",
+					"code": 201,
+					"_postman_previewlanguage": "json",
+					"header": [],
+					"cookie": [],
+					"body": "{\n    \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"date\": \"2024-01-15T00:00:00Z\",\n    \"amount\": 150.5,\n    \"type\": \"spending\",\n    \"description\": \"Grocery shopping at Whole Foods\",\n    \"image_url\": \"\",\n    \"created_at\": \"2024-01-15T10:30:00Z\",\n    \"updated_at\": \"2024-01-15T10:30:00Z\"\n}"
+				}
+			]
+		},
+		{
+			"name": "Create Transaction (With Image)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"date\": \"2024-01-15\",\n    \"amount\": 25.99,\n    \"type\": \"spending\",\n    \"description\": \"Coffee and pastry at local cafe\",\n    \"image_base64\": \"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx4f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyEjkKFGirFhCl3h/8ANRxl3hv8T2q3ZMD9z\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/api/transactions",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"transactions"
+					]
+				},
+				"description": "Create a new transaction with an image attachment (receipt, invoice, etc.).\n\n## Image Field:\n- **image_base64**: Base64 encoded image data\n\n## Supported Image Formats:\n- JPEG (.jpg, .jpeg)\n- PNG (.png)\n- WebP (.webp)\n\n## Image Requirements:\n- Maximum size: 10MB\n- Must be base64 encoded\n- Can include data URL prefix (e.g., \"data:image/jpeg;base64,\")\n\n## How to get Base64:\n1. Use online converter (base64encode.org)\n2. Use browser: `btoa(fileContent)`\n3. Use command line: `base64 image.jpg`\n\n## Example with data URL prefix:\n```json\n{\n    \"image_base64\": \"data:image/jpeg;base64,/9j/4AAQSkZJRg...\"\n}\n```\n\n## Example without prefix:\n```json\n{\n    \"image_base64\": \"/9j/4AAQSkZJRg...\"\n}\n```"
+			},
+			"response": [
+				{
+					"name": "Transaction with Image Created",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"date\": \"2024-01-15\",\n    \"amount\": 25.99,\n    \"type\": \"spending\",\n    \"description\": \"Coffee and pastry at local cafe\",\n    \"image_base64\": \"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/...\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/transactions",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"transactions"
+							]
+						}
+					},
+					"status": "Created",
+					"code": 201,
+					"_postman_previewlanguage": "json",
+					"header": [],
+					"cookie": [],
+					"body": "{\n    \"id\": \"550e8400-e29b-41d4-a716-446655440001\",\n    \"date\": \"2024-01-15T00:00:00Z\",\n    \"amount\": 25.99,\n    \"type\": \"spending\",\n    \"description\": \"Coffee and pastry at local cafe\",\n    \"image_url\": \"https://cashflow-images.s3.us-east-1.amazonaws.com/transactions/2024/01/550e8400-e29b-41d4-a716-446655440001_1705396200.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=...\",\n    \"created_at\": \"2024-01-15T10:30:00Z\",\n    \"updated_at\": \"2024-01-15T10:30:00Z\"\n}"
+				}
+			]
+		},
+		{
+			"name": "Create Earning Transaction",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"date\": \"2024-01-01\",\n    \"amount\": 5000.00,\n    \"type\": \"earning\",\n    \"description\": \"Monthly salary deposit\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/api/transactions",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"transactions"
+					]
+				},
+				"description": "Create an earning/income transaction.\n\n## Transaction Types:\n- **\"spending\"**: Money going out (purchases, bills, etc.)\n- **\"earning\"**: Money coming in (salary, freelance, etc.)\n\n## Common Earning Examples:\n- Salary: Monthly/weekly paycheck\n- Freelance: Project payments\n- Investment: Dividends, returns\n- Business: Revenue, sales\n- Other: Gifts, refunds, bonuses"
+			},
+			"response": []
+		},
+		{
+			"name": "List Transactions",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/transactions?limit=20&offset=0",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"transactions"
+					],
+					"query": [
+						{
+							"key": "limit",
+							"value": "20",
+							"description": "Number of transactions to return (default: 20, max: 100)"
+						},
+						{
+							"key": "offset",
+							"value": "0",
+							"description": "Number of transactions to skip for pagination (default: 0)"
+						}
+					]
+				},
+				"description": "Retrieve a paginated list of all transactions, sorted by date (newest first).\n\n## Query Parameters:\n- **limit**: Number of transactions per page (1-100, default: 20)\n- **offset**: Number of transactions to skip (for pagination, default: 0)\n\n## Pagination Examples:\n- Page 1: `?limit=20&offset=0`\n- Page 2: `?limit=20&offset=20`\n- Page 3: `?limit=20&offset=40`\n\n## Response includes:\n- Array of transactions\n- Total count (for pagination)\n- Current limit and offset\n\n## Sorting:\nTransactions are sorted by date (newest first), then by creation time."
+			},
+			"response": [
+				{
+					"name": "List Transactions Success",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/transactions?limit=20&offset=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"transactions"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "20"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [],
+					"cookie": [],
+					"body": "{\n    \"transactions\": [\n        {\n            \"id\": \"550e8400-e29b-41d4-a716-446655440001\",\n            \"date\": \"2024-01-15T00:00:00Z\",\n            \"amount\": 25.99,\n            \"type\": \"spending\",\n            \"description\": \"Coffee and pastry\",\n            \"image_url\": \"https://cashflow-images.s3.us-east-1.amazonaws.com/transactions/2024/01/550e8400-e29b-41d4-a716-446655440001_1705396200.jpg?X-Amz-Algorithm=...\",\n            \"created_at\": \"2024-01-15T10:30:00Z\",\n            \"updated_at\": \"2024-01-15T10:30:00Z\"\n        },\n        {\n            \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n            \"date\": \"2024-01-01T00:00:00Z\",\n            \"amount\": 5000.00,\n            \"type\": \"earning\",\n            \"description\": \"Monthly salary\",\n            \"image_url\": \"\",\n            \"created_at\": \"2024-01-01T09:00:00Z\",\n            \"updated_at\": \"2024-01-01T09:00:00Z\"\n        }\n    ],\n    \"total\": 2,\n    \"limit\": 20,\n    \"offset\": 0\n}"
+				}
+			]
+		},
+		{
+			"name": "Get Monthly Aggregate",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/transactions/aggregate?month=2024-01",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"transactions",
+						"aggregate"
+					],
+					"query": [
+						{
+							"key": "month",
+							"value": "2024-01",
+							"description": "Month in YYYY-MM format (e.g., 2024-01 for January 2024)"
+						}
+					]
+				},
+				"description": "Get aggregated financial data for a specific month.\n\n## Query Parameters:\n- **month**: Required. Month in YYYY-MM format\n\n## Month Format Examples:\n- January 2024: `2024-01`\n- December 2023: `2023-12`\n- Current month: Use current year and month\n\n## Response Data:\n- **income**: Total earnings for the month\n- **spending**: Total spending for the month\n- **net_total**: Net amount (income - spending)\n\n## Use Cases:\n- Monthly budget tracking\n- Expense reports\n- Financial summaries\n- Trend analysis"
+			},
+			"response": [
+				{
+					"name": "Monthly Aggregate Success",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/transactions/aggregate?month=2024-01",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"transactions",
+								"aggregate"
+							],
+							"query": [
+								{
+									"key": "month",
+									"value": "2024-01"
+								}
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [],
+					"cookie": [],
+					"body": "{\n    \"month\": \"2024-01\",\n    \"income\": 5000.00,\n    \"spending\": 176.49,\n    \"net_total\": 4823.51\n}"
+				}
+			]
+		},
+		{
+			"name": "Delete Transaction",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/transactions/550e8400-e29b-41d4-a716-446655440000",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"transactions",
+						"550e8400-e29b-41d4-a716-446655440000"
+					]
+				},
+				"description": "Delete a specific transaction by its ID.\n\n## Path Parameters:\n- **id**: UUID of the transaction to delete\n\n## Important Notes:\n- This action is **irreversible**\n- If the transaction has an associated image, it will also be deleted from S3\n- Returns 204 (No Content) on success\n- Returns 404 if transaction not found\n- Returns 500 if deletion fails\n\n## Getting Transaction IDs:\n1. Use the \"List Transactions\" endpoint\n2. Copy the `id` field from the desired transaction\n3. Replace the ID in this request URL\n\n## S3 Cleanup:\nWhen a transaction with an image is deleted:\n- The image file is automatically removed from AWS S3\n- The S3 storage costs are reduced\n- The image URL becomes invalid"
+			},
+			"response": [
+				{
+					"name": "Transaction Deleted Successfully",
+					"originalRequest": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/transactions/550e8400-e29b-41d4-a716-446655440000",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"transactions",
+								"550e8400-e29b-41d4-a716-446655440000"
+							]
+						}
+					},
+					"status": "No Content",
+					"code": 204,
+					"_postman_previewlanguage": null,
+					"header": [],
+					"cookie": [],
+					"body": null
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string",
+			"description": "Base URL for the Cashflow API server"
+		}
+	]
+}

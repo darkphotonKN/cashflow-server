@@ -13,20 +13,22 @@ type Repository interface {
 	List(ctx context.Context, limit, offset int) ([]*Transaction, error)
 	Count(ctx context.Context) (int64, error)
 	GetByMonth(ctx context.Context, year int, month int) ([]*Transaction, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*Transaction, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type repository struct {
 	db *sql.DB
 }
 
-func NewRepository(db *sql.DB) Repository {
+func NewRepository(db *sql.DB) *repository {
 	return &repository{db: db}
 }
 
 func (r *repository) Create(ctx context.Context, transaction *Transaction) error {
 	query := `
-		INSERT INTO transactions (id, date, amount, type, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO transactions (id, date, amount, type, description, image_url, image_key, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
@@ -34,6 +36,9 @@ func (r *repository) Create(ctx context.Context, transaction *Transaction) error
 		transaction.Date,
 		transaction.Amount,
 		transaction.Type,
+		transaction.Description,
+		transaction.ImageURL,
+		transaction.ImageKey,
 		transaction.CreatedAt,
 		transaction.UpdatedAt,
 	)
@@ -47,7 +52,7 @@ func (r *repository) Create(ctx context.Context, transaction *Transaction) error
 
 func (r *repository) List(ctx context.Context, limit, offset int) ([]*Transaction, error) {
 	query := `
-		SELECT id, date, amount, type, created_at, updated_at
+		SELECT id, date, amount, type, description, image_url, image_key, created_at, updated_at
 		FROM transactions
 		ORDER BY date DESC, created_at DESC
 		LIMIT $1 OFFSET $2
@@ -67,6 +72,9 @@ func (r *repository) List(ctx context.Context, limit, offset int) ([]*Transactio
 			&t.Date,
 			&t.Amount,
 			&t.Type,
+			&t.Description,
+			&t.ImageURL,
+			&t.ImageKey,
 			&t.CreatedAt,
 			&t.UpdatedAt,
 		)
@@ -83,6 +91,55 @@ func (r *repository) List(ctx context.Context, limit, offset int) ([]*Transactio
 	return transactions, nil
 }
 
+func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*Transaction, error) {
+	query := `
+		SELECT id, date, amount, type, description, image_url, image_key, created_at, updated_at
+		FROM transactions
+		WHERE id = $1
+	`
+
+	var t Transaction
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&t.ID,
+		&t.Date,
+		&t.Amount,
+		&t.Type,
+		&t.Description,
+		&t.ImageURL,
+		&t.ImageKey,
+		&t.CreatedAt,
+		&t.UpdatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("transaction not found")
+		}
+		return nil, fmt.Errorf("getting transaction by id: %w", err)
+	}
+
+	return &t, nil
+}
+
+func (r *repository) Delete(ctx context.Context, id uuid.UUID) error {
+	query := `DELETE FROM transactions WHERE id = $1`
+
+	result, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("deleting transaction: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("getting rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("transaction not found")
+	}
+
+	return nil
+}
+
 func (r *repository) Count(ctx context.Context) (int64, error) {
 	var count int64
 	query := `SELECT COUNT(*) FROM transactions`
@@ -97,7 +154,7 @@ func (r *repository) Count(ctx context.Context) (int64, error) {
 
 func (r *repository) GetByMonth(ctx context.Context, year int, month int) ([]*Transaction, error) {
 	query := `
-		SELECT id, date, amount, type, created_at, updated_at
+		SELECT id, date, amount, type, description, image_url, image_key, created_at, updated_at
 		FROM transactions
 		WHERE EXTRACT(YEAR FROM date) = $1 AND EXTRACT(MONTH FROM date) = $2
 		ORDER BY date DESC, created_at DESC
@@ -117,6 +174,9 @@ func (r *repository) GetByMonth(ctx context.Context, year int, month int) ([]*Tr
 			&t.Date,
 			&t.Amount,
 			&t.Type,
+			&t.Description,
+			&t.ImageURL,
+			&t.ImageKey,
 			&t.CreatedAt,
 			&t.UpdatedAt,
 		)
