@@ -1,0 +1,361 @@
+{
+	"info": {
+		"_postman_id": "cashflow-api-v2-collection",
+		"name": "Cashflow API v2",
+		"description": "Personal financial tracking API with presigned URL image upload flow.\n\n## Features\n- Direct S3 upload using presigned URLs\n- Transaction management with image attachments\n- Monthly aggregation and reporting\n- Automatic image URL generation\n\n## Upload Flow\n1. Request a presigned URL from `/api/uploads/request`\n2. Upload image directly to S3 using the presigned URL\n3. Create transaction with the upload_id\n\n## Base URL\n`http://localhost:8080`",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "12345678"
+	},
+	"item": [
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": ["{{base_url}}"],
+							"path": ["health"]
+						},
+						"description": "Check if the API server is running and healthy."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Uploads",
+			"item": [
+				{
+					"name": "Request Upload URL",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Save response data for use in subsequent requests",
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('upload_id', response.upload_id);",
+									"    pm.collectionVariables.set('presigned_url', response.upload_url);",
+									"    console.log('Upload ID saved:', response.upload_id);",
+									"    console.log('Presigned URL saved');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"content_type\": \"image/jpeg\",\n    \"file_size\": 1024000\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/uploads/request",
+							"host": ["{{base_url}}"],
+							"path": ["api", "uploads", "request"]
+						},
+						"description": "Request a presigned URL for uploading an image to S3.\n\n## Request Body:\n- **content_type**: MIME type of the image (image/jpeg, image/png, image/webp)\n- **file_size**: Size of the file in bytes\n\n## Response:\n- **upload_id**: Unique identifier for this upload session\n- **upload_url**: Presigned S3 URL for direct upload\n- **expires_at**: When the upload URL expires\n- **s3_key**: The S3 object key where the file will be stored\n\n## Notes:\n- The presigned URL expires after 15 minutes\n- Maximum file size is 10MB\n- Only image files are accepted"
+					},
+					"response": [
+						{
+							"name": "Upload URL Generated",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"content_type\": \"image/jpeg\",\n    \"file_size\": 1024000\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/uploads/request",
+									"host": ["{{base_url}}"],
+									"path": ["api", "uploads", "request"]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n    \"upload_id\": \"123e4567-e89b-12d3-a456-426614174000\",\n    \"upload_url\": \"https://your-bucket.s3.amazonaws.com/staging/2024/01/123e4567_1704067200.jpg?X-Amz-Algorithm=...\",\n    \"expires_at\": \"2024-01-01T12:15:00Z\",\n    \"s3_key\": \"staging/2024/01/123e4567_1704067200.jpg\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Upload Image to S3",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "image/jpeg",
+								"description": "Must match the content_type used in the upload request"
+							}
+						],
+						"body": {
+							"mode": "file",
+							"file": {
+								"src": "/path/to/your/image.jpg"
+							}
+						},
+						"url": {
+							"raw": "{{presigned_url}}",
+							"host": ["{{presigned_url}}"]
+						},
+						"description": "Upload the image directly to S3 using the presigned URL.\n\n## Important:\n- This request goes directly to AWS S3, not to your API\n- Use PUT method\n- Content-Type header must match what was specified in the upload request\n- The body should be the raw binary file data\n- The URL is the presigned_url from the previous request\n\n## In Postman:\n1. Select 'Body' tab\n2. Choose 'binary' or 'form-data'\n3. Select your image file\n4. Make sure Content-Type header matches your file type"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Upload Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/uploads/{{upload_id}}/status",
+							"host": ["{{base_url}}"],
+							"path": ["api", "uploads", "{{upload_id}}", "status"]
+						},
+						"description": "Check the status of an upload to verify if the file has been successfully uploaded to S3.\n\n## Response:\n- **upload_id**: The upload identifier\n- **status**: Current status (pending, uploaded, linked, failed)\n- **s3_key**: S3 object key\n- **content_type**: MIME type of the file\n- **file_size**: Size in bytes\n- **created_at**: When the upload was requested\n- **uploaded_at**: When the file was uploaded to S3 (if applicable)\n- **transaction_id**: Associated transaction (if linked)"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for managing image uploads using presigned URLs"
+		},
+		{
+			"name": "Transactions",
+			"item": [
+				{
+					"name": "Create Transaction (No Image)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"date\": \"2024-01-15\",\n    \"amount\": 150.50,\n    \"type\": \"spending\",\n    \"description\": \"Grocery shopping at Whole Foods\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/transactions",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transactions"]
+						},
+						"description": "Create a new transaction without an image attachment."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Transaction (With Upload)",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// This request should be made after:",
+									"// 1. Requesting an upload URL",
+									"// 2. Uploading the image to S3",
+									"",
+									"if (!pm.collectionVariables.get('upload_id')) {",
+									"    console.warn('No upload_id found. Please run \"Request Upload URL\" and \"Upload Image to S3\" first.');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"date\": \"2024-01-15\",\n    \"amount\": 89.99,\n    \"type\": \"spending\",\n    \"description\": \"Restaurant dinner\",\n    \"upload_id\": \"{{upload_id}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/transactions",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transactions"]
+						},
+						"description": "Create a new transaction with an uploaded image.\n\n## Prerequisites:\n1. Request an upload URL using \"Request Upload URL\"\n2. Upload your image to S3 using \"Upload Image to S3\"\n3. Use the upload_id from step 1 in this request\n\n## Request Body:\n- **date**: Transaction date (YYYY-MM-DD)\n- **amount**: Transaction amount (positive number)\n- **type**: \"spending\" or \"earning\"\n- **description**: Optional description\n- **upload_id**: ID from the upload request\n\n## What happens:\n1. Verifies the image was uploaded to S3\n2. Moves the image from staging to production location\n3. Links the image to the transaction\n4. Returns the transaction with the image URL"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Transaction (Legacy Base64)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"date\": \"2024-01-15\",\n    \"amount\": 45.00,\n    \"type\": \"spending\",\n    \"description\": \"Coffee and pastry\",\n    \"image_base64\": \"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD...\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/transactions",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transactions"]
+						},
+						"description": "Create a transaction with base64 encoded image (deprecated).\n\n## ⚠️ Deprecated\nThis method is kept for backward compatibility but is not recommended for production use due to:\n- Large request payload size\n- Memory overhead on the server\n- Not suitable for mobile apps\n\n## Recommended Alternative:\nUse the presigned URL upload flow instead."
+					},
+					"response": []
+				},
+				{
+					"name": "List Transactions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/transactions?limit=20&offset=0",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transactions"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Number of transactions to return (max 100)"
+								},
+								{
+									"key": "offset",
+									"value": "0",
+									"description": "Number of transactions to skip"
+								}
+							]
+						},
+						"description": "Get a paginated list of all transactions.\n\n## Query Parameters:\n- **limit**: Number of results (1-100, default: 20)\n- **offset**: Skip this many results (default: 0)\n\n## Response:\n- **transactions**: Array of transaction objects\n- **total**: Total number of transactions\n- **limit**: The limit used\n- **offset**: The offset used\n\n## Notes:\n- Transactions are sorted by date (newest first)\n- Image URLs are dynamically generated with 1-hour expiration"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Monthly Aggregate",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/transactions/aggregate?month=2024-01",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transactions", "aggregate"],
+							"query": [
+								{
+									"key": "month",
+									"value": "2024-01",
+									"description": "Month in YYYY-MM format"
+								}
+							]
+						},
+						"description": "Get aggregated financial data for a specific month.\n\n## Query Parameters:\n- **month**: Month in YYYY-MM format (e.g., \"2024-01\")\n\n## Response:\n- **month**: The requested month\n- **income**: Total earnings for the month\n- **spending**: Total spending for the month\n- **net_total**: Income minus spending"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Transaction",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/transactions/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transactions", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "123e4567-e89b-12d3-a456-426614174000",
+									"description": "Transaction UUID"
+								}
+							]
+						},
+						"description": "Delete a transaction and its associated S3 image.\n\n## Path Parameters:\n- **id**: Transaction UUID\n\n## Notes:\n- This will permanently delete the transaction from the database\n- If the transaction has an associated image, it will be deleted from S3\n- This action cannot be undone"
+					},
+					"response": []
+				}
+			],
+			"description": "Transaction management endpoints"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "upload_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "presigned_url",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

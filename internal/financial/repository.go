@@ -27,7 +27,7 @@ func NewRepository(db *sql.DB) *repository {
 
 func (r *repository) Create(ctx context.Context, transaction *Transaction) error {
 	query := `
-		INSERT INTO transactions (id, date, amount, type, description, image_url, image_key, created_at, updated_at)
+		INSERT INTO transactions (id, date, amount, type, description, image_key, upload_id, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 
@@ -37,8 +37,8 @@ func (r *repository) Create(ctx context.Context, transaction *Transaction) error
 		transaction.Amount,
 		transaction.Type,
 		transaction.Description,
-		transaction.ImageURL,
 		transaction.ImageKey,
+		transaction.UploadID,
 		transaction.CreatedAt,
 		transaction.UpdatedAt,
 	)
@@ -52,7 +52,7 @@ func (r *repository) Create(ctx context.Context, transaction *Transaction) error
 
 func (r *repository) List(ctx context.Context, limit, offset int) ([]*Transaction, error) {
 	query := `
-		SELECT id, date, amount, type, description, image_url, image_key, created_at, updated_at
+		SELECT id, date, amount, type, description, COALESCE(image_key, ''), COALESCE(upload_id, ''), created_at, updated_at
 		FROM transactions
 		ORDER BY date DESC, created_at DESC
 		LIMIT $1 OFFSET $2
@@ -73,8 +73,8 @@ func (r *repository) List(ctx context.Context, limit, offset int) ([]*Transactio
 			&t.Amount,
 			&t.Type,
 			&t.Description,
-			&t.ImageURL,
 			&t.ImageKey,
+			&t.UploadID,
 			&t.CreatedAt,
 			&t.UpdatedAt,
 		)
@@ -93,7 +93,7 @@ func (r *repository) List(ctx context.Context, limit, offset int) ([]*Transactio
 
 func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*Transaction, error) {
 	query := `
-		SELECT id, date, amount, type, description, image_url, image_key, created_at, updated_at
+		SELECT id, date, amount, type, description, COALESCE(image_key, ''), COALESCE(upload_id, ''), created_at, updated_at
 		FROM transactions
 		WHERE id = $1
 	`
@@ -105,8 +105,8 @@ func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*Transaction, e
 		&t.Amount,
 		&t.Type,
 		&t.Description,
-		&t.ImageURL,
 		&t.ImageKey,
+		&t.UploadID,
 		&t.CreatedAt,
 		&t.UpdatedAt,
 	)
@@ -154,7 +154,7 @@ func (r *repository) Count(ctx context.Context) (int64, error) {
 
 func (r *repository) GetByMonth(ctx context.Context, year int, month int) ([]*Transaction, error) {
 	query := `
-		SELECT id, date, amount, type, description, image_url, image_key, created_at, updated_at
+		SELECT id, date, amount, type, description, COALESCE(image_key, ''), COALESCE(upload_id, ''), created_at, updated_at
 		FROM transactions
 		WHERE EXTRACT(YEAR FROM date) = $1 AND EXTRACT(MONTH FROM date) = $2
 		ORDER BY date DESC, created_at DESC
@@ -175,8 +175,8 @@ func (r *repository) GetByMonth(ctx context.Context, year int, month int) ([]*Tr
 			&t.Amount,
 			&t.Type,
 			&t.Description,
-			&t.ImageURL,
 			&t.ImageKey,
+			&t.UploadID,
 			&t.CreatedAt,
 			&t.UpdatedAt,
 		)

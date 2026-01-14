@@ -19,8 +19,9 @@ type Transaction struct {
 	Amount      float64         `json:"amount"`
 	Type        TransactionType `json:"type"`
 	Description string          `json:"description"`
-	ImageURL    string          `json:"image_url"`
+	ImageURL    string          `json:"image_url,omitempty"`  // Generated dynamically
 	ImageKey    string          `json:"image_key,omitempty"`
+	UploadID    string          `json:"upload_id,omitempty"`
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
 }
@@ -30,7 +31,8 @@ type CreateTransactionRequest struct {
 	Amount      float64         `json:"amount" binding:"required,gt=0"`
 	Type        TransactionType `json:"type" binding:"required,oneof=spending earning"`
 	Description string          `json:"description"`
-	ImageBase64 string          `json:"image_base64,omitempty"`
+	UploadID    string          `json:"upload_id,omitempty"`     // For presigned URL flow
+	ImageBase64 string          `json:"image_base64,omitempty"`  // Deprecated but kept for compatibility
 }
 
 type ListTransactionsResponse struct {

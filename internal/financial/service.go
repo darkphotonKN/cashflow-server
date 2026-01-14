@@ -14,16 +14,22 @@ import (
 )
 
 type service struct {
-	repo      Repository
-	s3Service s3.Service
-	logger    *slog.Logger
+	repo          Repository
+	s3Service     s3.Service
+	uploadService UploadService
+	logger        *slog.Logger
 }
 
-func NewService(repo Repository, s3Service s3.Service, logger *slog.Logger) *service {
+type UploadService interface {
+	VerifyAndLinkUpload(ctx context.Context, uploadID string, transactionID uuid.UUID) (string, error)
+}
+
+func NewService(repo Repository, s3Service s3.Service, uploadService UploadService, logger *slog.Logger) *service {
 	return &service{
-		repo:      repo,
-		s3Service: s3Service,
-		logger:    logger,
+		repo:          repo,
+		s3Service:     s3Service,
+		uploadService: uploadService,
+		logger:        logger,
 	}
 }
 
@@ -52,8 +58,17 @@ func (s *service) CreateTransaction(ctx context.Context, req CreateTransactionRe
 		UpdatedAt:   now,
 	}
 
-	// Handle image upload if provided
-	if req.ImageBase64 != "" {
+	// Handle image upload
+	if req.UploadID != "" {
+		// New presigned URL flow
+		imageKey, err := s.uploadService.VerifyAndLinkUpload(ctx, req.UploadID, transaction.ID)
+		if err != nil {
+			return nil, fmt.Errorf("verifying upload: %w", err)
+		}
+		transaction.ImageKey = imageKey
+		transaction.UploadID = req.UploadID
+	} else if req.ImageBase64 != "" {
+		// Legacy base64 flow (deprecated)
 		imageData, contentType, err := s.decodeBase64Image(req.ImageBase64)
 		if err != nil {
 			return nil, fmt.Errorf("decoding image: %w", err)
@@ -64,8 +79,8 @@ func (s *service) CreateTransaction(ctx context.Context, req CreateTransactionRe
 			return nil, fmt.Errorf("uploading image: %w", err)
 		}
 
-		transaction.ImageURL = url
 		transaction.ImageKey = key
+		transaction.ImageURL = url
 	}
 
 	if err := s.repo.Create(ctx, transaction); err != nil {
@@ -74,6 +89,18 @@ func (s *service) CreateTransaction(ctx context.Context, req CreateTransactionRe
 			slog.String("type", string(req.Type)),
 			slog.Float64("amount", req.Amount))
 		return nil, fmt.Errorf("creating transaction: %w", err)
+	}
+
+	// Generate presigned URL for response if image exists
+	if transaction.ImageKey != "" {
+		url, err := s.s3Service.GetPresignedURL(ctx, transaction.ImageKey)
+		if err != nil {
+			s.logger.Warn("failed to generate presigned URL for new transaction",
+				slog.String("error", err.Error()),
+				slog.String("key", transaction.ImageKey))
+		} else {
+			transaction.ImageURL = url
+		}
 	}
 
 	s.logger.Info("transaction created",
@@ -99,6 +126,20 @@ func (s *service) ListTransactions(ctx context.Context, limit, offset int) ([]*T
 	if err != nil {
 		s.logger.Error("failed to list transactions", slog.String("error", err.Error()))
 		return nil, 0, fmt.Errorf("listing transactions: %w", err)
+	}
+
+	// Generate presigned URLs for images
+	for _, t := range transactions {
+		if t.ImageKey != "" {
+			url, err := s.s3Service.GetPresignedURL(ctx, t.ImageKey)
+			if err != nil {
+				s.logger.Warn("failed to generate presigned URL",
+					slog.String("error", err.Error()),
+					slog.String("key", t.ImageKey))
+			} else {
+				t.ImageURL = url
+			}
+		}
 	}
 
 	count, err := s.repo.Count(ctx)

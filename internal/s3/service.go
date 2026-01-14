@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -17,6 +18,9 @@ type Service interface {
 	UploadImage(ctx context.Context, imageData []byte, contentType string) (url string, key string, err error)
 	DeleteImage(ctx context.Context, key string) error
 	GetPresignedURL(ctx context.Context, key string) (string, error)
+	GeneratePresignedPutURL(ctx context.Context, key string, contentType string, expires time.Duration) (string, error)
+	ObjectExists(ctx context.Context, key string) (bool, error)
+	CopyObject(ctx context.Context, sourceKey string, destKey string) error
 }
 
 type service struct {
@@ -120,6 +124,54 @@ func (s *service) GetPresignedURL(ctx context.Context, key string) (string, erro
 	return request.URL, nil
 }
 
+func (s *service) GeneratePresignedPutURL(ctx context.Context, key string, contentType string, expires time.Duration) (string, error) {
+	request, err := s.presignClient.PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(s.config.BucketName),
+		Key:         aws.String(key),
+		ContentType: aws.String(contentType),
+	}, func(opts *s3.PresignOptions) {
+		opts.Expires = expires
+	})
+	if err != nil {
+		return "", fmt.Errorf("generating presigned PUT URL: %w", err)
+	}
+
+	return request.URL, nil
+}
+
+func (s *service) ObjectExists(ctx context.Context, key string) (bool, error) {
+	_, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(s.config.BucketName),
+		Key:    aws.String(key),
+	})
+
+	if err != nil {
+		// Check if the error is because the object doesn't exist
+		if strings.Contains(err.Error(), "NotFound") {
+			return false, nil
+		}
+		return false, fmt.Errorf("checking object existence: %w", err)
+	}
+
+	return true, nil
+}
+
+func (s *service) CopyObject(ctx context.Context, sourceKey string, destKey string) error {
+	copySource := fmt.Sprintf("%s/%s", s.config.BucketName, sourceKey)
+
+	_, err := s.client.CopyObject(ctx, &s3.CopyObjectInput{
+		Bucket:     aws.String(s.config.BucketName),
+		CopySource: aws.String(copySource),
+		Key:        aws.String(destKey),
+	})
+
+	if err != nil {
+		return fmt.Errorf("copying S3 object: %w", err)
+	}
+
+	return nil
+}
+
 func isValidContentType(contentType string) bool {
 	validTypes := map[string]bool{
 		"image/jpeg": true,
@@ -129,3 +181,4 @@ func isValidContentType(contentType string) bool {
 	}
 	return validTypes[contentType]
 }
+
